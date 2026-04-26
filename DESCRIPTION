@@ -1,0 +1,45 @@
+Package: mlstudy
+Title: Machine Learning Self-Study: Classification Model Comparison
+Version: 0.1.0
+Authors@R: c(
+        person("Aksel", "J", , "ajens22@student.aau.dk", role = c("aut", "cre")),
+        person("Alex", "G", , "agrege22@student.aau.dk", role = c("aut" )),
+        person("Lisa", "R", , "lrijkh22@student.aau.dk", role = c("aut")),
+        person("Mads", "J", , "mstaun22@example.com", role = c("aut"))
+    )
+Description: An R package wrapping the tidymodels classification pipeline from
+    self-study 1. Provides a single entry point, ml_compare(), that splits data,
+    pre-processes it, tunes three model families (Random Forest, Elastic Net
+    logistic regression, XGBoost) via cross-validated grid search, selects the
+    best model by ROC AUC, and evaluates it on a held-out test set. Results are
+    returned as an S3 object of class 'mlstudy_result' with print, summary, and
+    plot methods.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports:
+    dials,
+    dplyr,
+    ggplot2,
+    parsnip,
+    recipes,
+    rlang,
+    rsample,
+    stats,
+    tune,
+    workflows,
+    yardstick
+Suggests:
+    glmnet,
+    knitr,
+    modeldata,
+    ranger,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    tidyr,
+    xgboost
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+URL: https://github.com/akseljensen1/mlstudy
+BugReports: https://github.com/akseljensen1/mlstudy/issues

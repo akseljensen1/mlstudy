@@ -1,0 +1,163 @@
+---
+title: "Credit status classification"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Credit status classification}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  warning  = FALSE,
+  message  = FALSE
+)
+```
+
+The dataset used is `credit_data` from the **modeldata** package. It contains
+4,039 observations where the response variable `Status` is a binary
+classification label ("good" or "bad"), predicted using 13 other covariates.
+
+```{r data}
+library(mlstudy)
+library(modeldata)
+library(yardstick)
+
+data(credit_data, package = "modeldata")
+credit_data <- tidyr::drop_na(credit_data)
+```
+
+## Training / test split
+
+Split the dataset into training and test sets, then summarise the class
+distribution in each set.
+
+```{r split}
+split <- ml_split(credit_data, target = "Status", prop_train = 0.80, seed = 3)
+
+rsample::training(split) |>
+  dplyr::count(Status) |>
+  dplyr::mutate(prop = n / sum(n))
+
+rsample::testing(split) |>
+  dplyr::count(Status) |>
+  dplyr::mutate(prop = n / sum(n))
+```
+
+## Model comparison via grid search
+
+Three classification model families are tuned using cross-validated grid search:
+
+- **Random Forest** — `mtry` and `min_n`
+- **Elastic Net** (logistic regression) — `penalty` and `mixture`
+- **XGBoost** — `tree_depth`, `learn_rate`, and `min_n`
+
+A preprocessing recipe dummy-encodes nominal predictors, removes zero-variance
+columns, and normalises numeric predictors before fitting any model.
+
+`ml_compare()` runs the full pipeline: recipe → workflows → 5-fold CV grid
+search → selects the winner by ROC AUC → final fit on the full training set →
+evaluation on the held-out test set.
+
+```{r compare, cache=TRUE}
+result <- ml_compare(
+  credit_data,
+  target      = "Status",
+  prop_train  = 0.80,
+  seed_split  = 3,
+  seed_tune   = 42,
+  cv_folds    = 5,
+  rf_trees    = 300,
+  xgb_trees   = 300,
+  grid_levels = 4
+)
+```
+
+## Cross-validated model comparison
+
+```{r cv-compare}
+result$cv_compare[, c("model", "mean", "std_err", "n")]
+```
+
+Best hyper-parameters per model:
+
+```{r best-params}
+result$best_params
+```
+
+## Tuning plot for the winning model
+
+The plot below mirrors the tuning visualisation from self-study 1.
+
+```{r tune-plot, fig.width=7, fig.height=4}
+if (result$best == "XGBoost") {
+  tune::collect_metrics(result$tune_results[["XGBoost"]]) |>
+    dplyr::filter(.metric == "roc_auc") |>
+    dplyr::mutate(
+      tree_depth = factor(tree_depth),
+      min_n      = factor(min_n)
+    ) |>
+    ggplot2::ggplot(ggplot2::aes(
+      x      = learn_rate,
+      y      = mean,
+      colour = tree_depth,
+      group  = tree_depth
+    )) +
+    ggplot2::geom_line(linewidth = 1.1, alpha = 0.7) +
+    ggplot2::geom_point(size = 2) +
+    ggplot2::facet_wrap(~min_n) +
+    ggplot2::labs(
+      title    = "XGBoost tuning results",
+      subtitle = "Cross-validated ROC AUC across learn_rate, tree_depth, and min_n",
+      x        = "learn_rate",
+      y        = "Mean ROC AUC",
+      colour   = "tree_depth"
+    )
+}
+```
+
+## Test-set evaluation
+
+```{r test-metrics}
+tune::collect_metrics(result$final_res)
+```
+
+Individual metrics on the test set:
+
+```{r individual-metrics}
+preds <- result$test_preds
+
+roc_auc(preds,   truth = Status, .pred_bad)
+accuracy(preds,  truth = Status, estimate = .pred_class)
+precision(preds, truth = Status, estimate = .pred_class, event_level = "second")
+```
+
+ROC curve:
+
+```{r roc-curve, fig.width=5, fig.height=5}
+preds |>
+  roc_curve(truth = Status, .pred_bad) |>
+  ggplot2::autoplot()
+```
+
+Confusion matrix:
+
+```{r conf-mat}
+conf_mat(preds, truth = Status, estimate = .pred_class)
+```
+
+## Package print / summary / plot methods
+
+```{r print}
+print(result)
+```
+
+```{r summary}
+summary(result)
+```
+
+```{r plot, fig.width=7, fig.height=4}
+plot(result)
+```
